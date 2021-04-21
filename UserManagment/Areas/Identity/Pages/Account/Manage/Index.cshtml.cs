@@ -29,7 +29,8 @@ namespace UserManagment.Areas.Identity.Pages.Account.Manage
 
         [TempData]
         public string StatusMessage { get; set; }
-
+        [TempData]
+        public string UserNameChangeLimitMessage { get; set; }
         [BindProperty]
         public InputModel Input { get; set; }
 
@@ -75,7 +76,6 @@ namespace UserManagment.Areas.Identity.Pages.Account.Manage
             {
                 return NotFound($"Unable to load user with ID '{_userManager.GetUserId(User)}'.");
             }
-
             await LoadAsync(user);
             return Page();
         }
@@ -117,7 +117,30 @@ namespace UserManagment.Areas.Identity.Pages.Account.Manage
                 user.LastName = Input.LastName;
                 await _userManager.UpdateAsync(user);
             }
-
+            if(user.UsernameChangeLimit > 0)
+            {
+                if(Input.Username != user.UserName)
+                {
+                    var userNameExists = await _userManager.FindByNameAsync(Input.Username);
+                    if(userNameExists != null)
+                    {
+                        StatusMessage = "Username already taken. Select a different username";
+                        return RedirectToPage();
+                    }
+                    var setUserName = await _userManager.SetUserNameAsync(user, Input.Username);
+                    if (!setUserName.Succeeded)
+                    {
+                        StatusMessage = "Unexpected error when trying to set username";
+                        return RedirectToPage();
+                    }
+                    else
+                    {
+                        user.UsernameChangeLimit -= 1;
+                        UserNameChangeLimitMessage = $"You can change your username {user.UsernameChangeLimit} more time(s).";
+                        await _userManager.UpdateAsync(user);
+                    }
+                }
+            }
             if(Request.Form.Files.Count > 0)
             {
                 IFormFile file = Request.Form.Files.FirstOrDefault();
